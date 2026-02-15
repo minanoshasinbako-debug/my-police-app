@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>スケジュール作成</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { --primary: #3b82f6; --female-bg: #fff1f2; --female-text: #f43f5e; --watcher-bg: #f0f4ff; --bg: #f3f4f6; }
+        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif; margin: 0; background: var(--bg); color: #1f2937; padding-bottom: 50px; }
+        
+        .header { padding: 20px 15px; display: flex; align-items: center; gap: 10px; }
+        .header h1 { font-size: 1.8rem; margin: 0; font-weight: bold; }
+
+        .container { padding: 0 15px; max-width: 500px; margin: 0 auto; } /* PCでも中央に寄せる */
+        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        h3 { margin: 0 0 15px 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+
+        input[type="text"] { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; flex: 1; font-size: 16px; }
+        .add-btn { background: var(--primary); color: white; border: none; border-radius: 10px; padding: 10px 18px; font-weight: bold; cursor: pointer; }
+        
+        .member-box { border: 1px solid #f3f4f6; border-radius: 12px; overflow: hidden; }
+        .member-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #f3f4f6; }
+        .tag-female { background: var(--female-bg); color: var(--female-text); font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-left: 8px; }
+        .del-btn { background: #fff1f2; color: #f43f5e; border: 1px solid #ffe4e6; border-radius: 8px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+
+        .time-input-group { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .time-box { background: #e5e7eb; border: none; border-radius: 12px; padding: 12px; font-size: 16px; width: 80px; text-align: center; font-weight: bold; }
+        .confirm-btn { width: 100%; background: #e5e7eb; color: #374151; border: none; border-radius: 15px; padding: 18px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .confirm-btn:active { opacity: 0.7; }
+
+        .sw-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; font-weight: bold; color: #9ca3af; margin: 5px 2px; }
+        .sw-btn.active-p { background: #eff6ff; border-color: var(--primary); color: var(--primary); }
+        .sw-btn.active-w { background: #f5f3ff; border-color: #8b5cf6; color: #8b5cf6; }
+        
+        .slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px; background: #f9fafb; border-radius: 10px; }
+        .slot-item { font-size: 13px; display: flex; align-items: center; gap: 4px; color: #4b5563; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        th { color: #6b7280; font-weight: normal; padding-bottom: 10px; font-size: 14px; }
+        td { border-top: 1px solid #f3f4f6; padding: 10px 0; text-align: center; }
+        .time-col { color: #9ca3af; font-size: 13px; width: 60px; }
+        
+        .name-chip { display: inline-block; padding: 4px 6px; font-size: 15px; cursor: grab; }
+        .name-chip.is-f { color: var(--female-text); font-weight: bold; }
+        .drop-zone { min-height: 40px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; }
+
+        .has-watcher { background-color: var(--watcher-bg); }
+        .warning-row td { background-color: #fff1f2; border-top: 1px solid #fecaca; border-bottom: 1px solid #fecaca; }
+        .status-bar { text-align: center; font-weight: bold; padding: 12px; margin: 10px 0; border-radius: 12px; font-size: 14px; }
+
+        .btn-gen { background: var(--primary); color: white; }
+        .btn-line { background: #06c755; color: white; }
+        .btn-img { background: #f59e0b; color: white; }
+
+        /* 保存用エリアのスタイル固定 */
+        #capture-area { width: 100%; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+<div class="header no-print">
+    <span>📅</span><h1>スケジュール作成</h1>
+</div>
+
+<div class="container">
+    <div class="card no-print">
+        <h3>👥 1. メンバー名簿</h3>
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
+            <input type="text" id="name-in" placeholder="名前">
+            <label style="display:flex; align-items:center; color:var(--female-text); font-weight:bold; white-space:nowrap;">
+                <input type="checkbox" id="gender-in" style="margin-right:4px;">女
+            </label>
+            <button class="add-btn" onclick="addMember()">追加</button>
+        </div>
+        <div id="master-list-div" class="member-box"></div>
+    </div>
+
+    <div class="card no-print">
+        <h3>🕒 2. 時間設定</h3>
+        <div class="time-input-group">
+            <input type="time" id="t-start" value="17:30" class="time-box">
+            <span style="color:#9ca3af;">〜</span>
+            <input type="time" id="t-end" value="18:30" class="time-box">
+        </div>
+        <button class="confirm-btn" onclick="confirmTime()">時間を確定して次へ</button>
+    </div>
+
+    <div id="daily-section" style="display:none;">
+        <div class="card no-print">
+            <h3>✅ 3. 役割 ＆ 参加時間</h3>
+            <div id="active-member-list"></div>
+        </div>
+        <button class="confirm-btn btn-gen" onclick="generate()">スケジュールを自動生成</button>
+    </div>
+
+    <div id="status-display" class="status-bar no-print" style="display:none; background:white;"></div>
+
+    <div id="result-div" style="display:none;">
+        <div id="capture-area-wrapper" style="width: 375px; margin: 0 auto;">
+            <div class="card" id="capture-area">
+                <div style="text-align:center; font-weight:bold; font-size:1.2rem; margin-bottom:15px;">[本日のスケジュール]</div>
+                <table>
+                    <thead>
+                        <tr><th class="time-col">時間</th><th>ペア</th><th style="width:90px;">見守り</th></tr>
+                    </thead>
+                    <tbody id="res-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="no-print">
+            <button class="confirm-btn btn-img" onclick="saveImage()" style="margin-bottom:10px;">画像を保存する</button>
+            <button class="confirm-btn btn-line" onclick="sendToLine()">LINEに送る</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let members = JSON.parse(localStorage.getItem('savedMembers') || '[]');
+    let slots = [];
+    let availabilityCache = {};
+
+    function addMember() {
+        const name = document.getElementById('name-in').value;
+        const isF = document.getElementById('gender-in').checked;
+        if (!name) return;
+        members.push({ id: Date.now(), name, isFemale: isF, isP: true, isW: false });
+        document.getElementById('name-in').value = '';
+        document.getElementById('gender-in').checked = false;
+        save();
+    }
+
+    function removeMember(id) {
+        members = members.filter(m => m.id !== id);
+        save();
+    }
+
+    function toggleRole(id, type) {
+        saveCurrentAvail();
+        const m = members.find(x => x.id === id);
+        if(type === 'P') m.isP = !m.isP;
+        if(type === 'W') m.isW = !m.isW;
+        save();
+    }
+
+    function save() {
+        localStorage.setItem('savedMembers', JSON.stringify(members));
+        drawMaster();
+        drawActive();
+    }
+
+    function drawMaster() {
+        const div = document.getElementById('master-list-div');
+        if (members.length === 0) { div.style.display = 'none'; return; }
+        div.style.display = 'block';
+        div.innerHTML = members.map(m => `
+            <div class="member-item">
+                <div style="display:flex; align-items:center;">
+                    <span style="font-weight:bold;">${m.name}</span>
+                    ${m.isFemale ? '<span class="tag-female">女性</span>' : ''}
+                </div>
+                <button class="del-btn" onclick="removeMember(${m.id})">削除</button>
+            </div>
+        `).join('');
+    }
+
+    function confirmTime() {
+        const start = document.getElementById('t-start').value;
+        const end = document.getElementById('t-end').value;
+        slots = [];
+        let cur = new Date(`2000/01/01 ${start}`);
+        let et = new Date(`2000/01/01 ${end}`);
+        while(cur < et) {
+            slots.push(cur.toTimeString().substring(0, 5));
+            cur.setMinutes(cur.getMinutes() + 10);
+        }
+        document.getElementById('daily-section').style.display = 'block';
+        drawActive();
+    }
+
+    function saveCurrentAvail() {
+        members.forEach(m => {
+            const checks = document.querySelectorAll(`.chk-${m.id}`);
+            if (checks.length > 0) availabilityCache[m.id] = Array.from(checks).map(c => c.checked);
+        });
+    }
+
+    function drawActive() {
+        const div = document.getElementById('active-member-list');
+        div.innerHTML = members.map(m => {
+            const savedAvail = availabilityCache[m.id] || new Array(slots.length).fill(true);
+            return `
+            <div style="margin-bottom:20px; border-bottom:1px solid #f3f4f6; padding-bottom:15px;">
+                <div style="font-weight:bold; font-size:1.1rem; margin-bottom:10px; ${m.isFemale?'color:var(--female-text)':''}"> ${m.name} </div>
+                <div style="display:flex; gap:5px; margin-bottom:10px;">
+                    <button class="sw-btn ${m.isP?'active-p':''}" onclick="toggleRole(${m.id}, 'P')">参加</button>
+                    <button class="sw-btn ${m.isW?'active-w':''}" onclick="toggleRole(${m.id}, 'W')">見守り</button>
+                </div>
+                <details>
+                    <summary style="font-size:13px; color:#6b7280; cursor:pointer;">参加可能時間の選択</summary>
+                    <div class="slot-grid">${slots.map((s, i) => `<label class="slot-item"><input type="checkbox" class="chk-${m.id}" ${savedAvail[i]?'checked':''}> ${s}</label>`).join('')}</div>
+                </details>
+            </div>`;
+        }).join('');
+    }
+
+    function generate() {
+        saveCurrentAvail();
+        const tbody = document.getElementById('res-tbody');
+        tbody.innerHTML = "";
+        let prevNames = [];
+
+        slots.forEach((t, i) => {
+            const tr = document.createElement('tr');
+            let pCans = members.filter(m => m.isP && (availabilityCache[m.id] ? availabilityCache[m.id][i] : true));
+            let pFilter = pCans.filter(m => !prevNames.includes(m.name));
+            if (pFilter.length < 2) pFilter = pCans; 
+            pFilter.sort(() => Math.random() - 0.5);
+            
+            const p1 = pFilter[0], p2 = pFilter[1];
+            let wName = "";
+
+            if (p1 && p2) {
+                if (p1.isFemale && p2.isFemale) {
+                    const wCans = members.filter(m => m.isW && (availabilityCache[m.id] ? availabilityCache[m.id][i] : true) && m.name !== p1.name && m.name !== p2.name);
+                    let wFilter = wCans.filter(m => !prevNames.includes(m.name));
+                    if (wFilter.length === 0) wFilter = wCans;
+                    if (wFilter.length > 0) wName = wFilter[Math.floor(Math.random()*wFilter.length)].name;
+                }
+                tr.innerHTML = `<td class="time-col">${t}</td><td><div class="drop-zone pair-zone"></div></td><td><div class="drop-zone watcher-zone"></div></td>`;
+                const pz = tr.querySelector('.pair-zone');
+                pz.appendChild(createChip(p1.name));
+                pz.appendChild(createChip(p2.name));
+                if (wName) tr.querySelector('.watcher-zone').appendChild(createChip(wName));
+                tbody.appendChild(tr);
+                prevNames = [p1.name, p2.name, wName];
+            }
+        });
+
+        document.querySelectorAll('.drop-zone').forEach(el => {
+            new Sortable(el, { group: 'members', animation: 150, onEnd: checkContinuity });
+        });
+        document.getElementById('result-div').style.display = 'block';
+        document.getElementById('status-display').style.display = 'block';
+        checkContinuity();
+    }
+
+    function createChip(name) {
+        const m = members.find(x => x.name === name);
+        const chip = document.createElement('div');
+        chip.className = `name-chip ${m && m.isFemale ? 'is-f' : ''}`;
+        chip.innerText = name;
+        chip.setAttribute('data-name', name);
+        return chip;
+    }
+
+    function checkContinuity() {
+        const rows = document.querySelectorAll('#res-tbody tr');
+        let lastNames = [];
+        let hasError = false;
+
+        rows.forEach(row => {
+            const current = Array.from(row.querySelectorAll('.name-chip')).map(c => c.getAttribute('data-name'));
+            const overlap = current.filter(n => lastNames.includes(n));
+            if (overlap.length > 0) { row.classList.add('warning-row'); hasError = true; }
+            else { row.classList.remove('warning-row'); }
+
+            const wZone = row.querySelector('.watcher-zone');
+            if (wZone && wZone.children.length > 0) row.classList.add('has-watcher');
+            else row.classList.remove('has-watcher');
+            lastNames = current;
+        });
+
+        const statusEl = document.getElementById('status-display');
+        if (hasError) {
+            statusEl.innerText = "⚠️ 連続稼働が発生しています";
+            statusEl.style.color = "#f43f5e";
+        } else {
+            statusEl.innerText = "✅ 全時間帯の重複なし";
+            statusEl.style.color = "#28a745";
+        }
+    }
+
+    // パソコンでもスマホサイズで保存する関数
+    function saveImage() {
+        const target = document.getElementById('capture-area');
+        
+        // PCでの保存時もスマホ幅（375px）をシミュレート
+        html2canvas(target, { 
+            scale: 2,
+            width: 375, // 保存時の横幅を固定
+            onclone: (clonedDoc) => {
+                // クローンされた要素の幅を強制的に375pxに設定
+                const clonedTarget = clonedDoc.getElementById('capture-area');
+                clonedTarget.style.width = '375px';
+            }
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `schedule_${new Date().getTime()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    }
+
+    function sendToLine() {
+        let text = "[本日のスケジュール]\n";
+        document.querySelectorAll('#res-tbody tr').forEach(row => {
+            const time = row.querySelector('.time-col').innerText;
+            const pair = Array.from(row.querySelectorAll('.pair-zone .name-chip')).map(c => c.innerText).join('＆');
+            const watch = Array.from(row.querySelectorAll('.watcher-zone .name-chip')).map(c => c.innerText).join('・');
+            text += `${time} | ${pair || '未定'} (見:${watch || '-'}) \n`;
+        });
+        window.location.href = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+    }
+
+    window.onload = drawMaster;
+</script>
+</body>
+</html>
